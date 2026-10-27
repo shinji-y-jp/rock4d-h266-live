@@ -4,6 +4,16 @@
 
 Radxa ROCK 4D (RK3576), Debian 12 ARM64, Fraunhofer **VVenC 1.15.0-dev** (GCC 12.2, NEON), **VVdeC 3.3.0-dev**. This repository includes the **verified offline benchmarking workflow** and a **separate, experimental live pipeline**. It is **not** a demonstrated H.266 DVB-S2 transmitter.
 
+## Experiment overview and required hardware
+
+**Hardware:** Radxa ROCK 4D (RK3576), Logitech C920 USB webcam, HDMI display, mouse, and keyboard.
+
+**Video format:** H.266/VVC, 1920×1080 (1080p), no audio.
+
+The goal is to **software-encode and software-decode H.266 video** on the ROCK 4D and display the resulting 1080p video on an HDMI monitor. During software encoding, CPU utilization approaches 100% on all eight cores, leaving effectively no CPU headroom for DVB-S2 transmission processing on the same board. **As of October 28, 2026, an SBC with hardware H.266 encoding and decoding support would be highly desirable.** The experiment may also work on other eight-core SBCs. If you reproduce it, please report your results.
+
+**Measurement caveat:** The reported 1080p / 5.135 fps result is an *offline encoding* measurement using saved YUV input, upscaled from an 800×448 camera source. It does not establish stable continuous live HDMI playback or DVB-S2 transmission.
+
 ## 1. Install prerequisites and build codecs
 
 ```bash
@@ -18,28 +28,19 @@ ls -l ~/src/vvenc/bin/release-static/vvencapp
 cd ~/src
 git clone https://github.com/fraunhoferhhi/vvdec.git
 cd vvdec
-# IMPORTANT: apply FIFO patch first (see section below).
-#make release
-ls -l ~/src/vvdec/bin/release-static/vvdecapp
+# IMPORTANT: apply the full FIFO patch below before building.
 ```
 
-These are the build commands used in the earlier experiment; upstream revisions may change the helper or output path. The benchmark was run with VVenC **1.15.0-dev**; the exact Git commit was not recorded, so builds from current upstream are not guaranteed to match. Check the upstream repositories if a build fails. The experimental VVdeC FIFO patch is included as `apply_vvdec_fifo_patch.py`. Apply it **before building VVdeC**; see the instructions below.
+These are the build commands used in the earlier experiment; upstream revisions may change the helper or output path. The benchmark was run with VVenC **1.15.0-dev**; the exact Git commit was not recorded, so builds from current upstream are not guaranteed to match. Check the upstream repositories if a build fails. The complete experimental VVdeC FIFO patch command is shown below. Apply it **before building VVdeC**.
 
 ## VVdeC FIFO patch — apply BEFORE compiling
 
-This repository includes the **exact forward-only Annex B reader function supplied in the ROCK 4D experiment**, wrapped in a guarded patch script. It changes `source/App/vvdecapp/vvdecHelper.h` and creates `.bak`. It is **experimental, not an official upstream fix**. The source layout may differ across VVdeC revisions; the exact Git commit of the tested 3.3.0-dev tree was not recorded. A successful build and basic FIFO decode were reported; continuous low-latency playback and reconnection are not proven.
+The following inline Python command contains the **forward-only Annex B reader function supplied in the ROCK 4D experiment**. It changes `source/App/vvdecapp/vvdecHelper.h` and creates `.bak`. It is **experimental, not an official upstream fix**. The source layout may differ across VVdeC revisions; the exact Git commit of the tested 3.3.0-dev tree was not recorded. A successful build and basic FIFO decode were reported; continuous low-latency playback and reconnection are not proven.
 
 ```bash
 cd ~/src/vvdec
+cp source/App/vvdecapp/vvdecHelper.h source/App/vvdecapp/vvdecHelper.h.bak
 
-cp source/App/vvdecapp/vvdecHelper.h \
-   source/App/vvdecapp/vvdecHelper.h.bak
-```
-
-
-
-
-```bash
 python3 - <<'PY'
 from pathlib import Path
 
@@ -157,7 +158,6 @@ if "#include <vector>" not in s:
 
 s = s[:start] + new + s[end:]
 p.write_text(s)
-
 print("Modified:", p)
 PY
 ```
@@ -166,19 +166,26 @@ If you already cloned VVdeC, omit `git clone`. If the patch refuses because the 
 
 **Important:** the live script is still an *experimental* pipeline. Its 1920×1080 camera capture mode and `~/y4m_pacer.py` path may need local adjustment; no verified uninterrupted live reception or DVB-S2 transmission is claimed.
 
+### Build VVdeC after applying the patch
+
+```bash
+cd ~/src/vvdec
+make release
+ls -l ~/src/vvdec/bin/release-static/vvdecapp
+```
+
 ## 2. Clone this repository
 
-After publishing to your GitHub account:
+After building the encoder and patched decoder:
 
 ```bash
 cd ~
 git clone https://github.com/shinji-y-jp/rock4d-h266-live.git
 cd rock4d-h266-live
-chmod +x *.sh
-chmod +x *.py
+chmod +x capture_yuv.sh benchmark.sh decode_file.sh live.sh
 ```
 
-If that repository URL has not yet been created, upload this ZIP's folder contents to a new repository named `rock4d-h266-live`, or extract the ZIP and run locally without cloning.
+Repository: https://github.com/shinji-y-jp/rock4d-h266-live
 
 ## 3. Inspect webcam modes
 
@@ -262,3 +269,9 @@ Potential issues: direct 1080p YUYV capture may not be available; FIFO operation
 ## 8. DVB-S2 scope and attribution
 
 A ~58.7 kbps VVC elementary stream is promising for narrowband DATV, but actual DVB-S2 symbol rate depends on MODCOD, framing, multiplexing, and overhead. No RF/DVB-S2 test is included. No VVenC/VVdeC binaries or patch files are included; upstream licenses apply. Experiment: **Shinji Yamazaki (JE1BTA)**.
+
+## Copyright and license
+
+Copyright (C) 2026 Shinji Yamazaki (山崎 慎慈) — October 28, 2026.
+
+Original code and documentation in this repository are licensed under the **GNU General Public License v3.0 (GPL-3.0)**. Third-party software, including VVenC and VVdeC, remains subject to its respective upstream licenses.

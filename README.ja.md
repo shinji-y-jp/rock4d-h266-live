@@ -4,6 +4,16 @@
 
 Radxa ROCK 4D（RK3576）、Debian 12 ARM64、Fraunhofer **VVenC 1.15.0-dev**（GCC 12.2、NEON）、**VVdeC 3.3.0-dev** を使用。**実測に成功した保存済みYUVによる性能測定**と、**未検証のライブ実験スクリプト**を明確に分けています。DVB-S2送信成功を示すものではありません。
 
+## 実験概要・必要なハードウェア
+
+**必要なハードウェア:** Radxa ROCK 4D（RK3576）、Logitech C920 USBカメラ、HDMIディスプレイ、マウス、キーボード。
+
+**映像条件:** H.266/VVC、1920×1080（1080p）、音声なし。
+
+この実験の目的は、ROCK 4D上でH.266を**ソフトウェアでエンコード・デコード**し、1080p映像をHDMIディスプレイに表示することです。エンコード時には8コアすべてのCPU使用率が100%近くになり、同じCPU上でDVB-S2送信処理を追加する余力は事実上ありません。**2026年10月28日現在、H.266ハードウェアエンコーダー・デコーダーを搭載したSBCの登場が期待されます。** 他の8コアSBCでも動作する可能性があります。再現に成功した方は、ぜひ結果を報告してください。
+
+**測定上の区別:** 1080p・5.135fpsの数値は保存済みYUVのオフラインエンコード実測値です。入力映像は800×448から拡大したものであり、連続ライブ表示の安定性やDVB-S2送信の成功を保証するものではありません。
+
 ## 1. 依存パッケージとコーデックのビルド
 
 ```bash
@@ -18,28 +28,18 @@ ls -l ~/src/vvenc/bin/release-static/vvencapp
 cd ~/src
 git clone https://github.com/fraunhoferhhi/vvdec.git
 cd vvdec
-# 先に以下のFIFOパッチ適用手順を実行
-#make release
-ls -l ~/src/vvdec/bin/release-static/vvdecapp
+# 次節のFIFOパッチを適用してからビルド
 ```
 
-これは従来の実験で使用した手順です。上流の更新でビルド補助コマンドや出力先が変わる場合があります。測定時のVVenCは **1.15.0-dev** ですがGitコミット番号は未記録です。**VVdeC用パッチは同梱しておらず、適用済みとも主張していません。** 必要なパッチの有無は使用環境で別途確認してください。
+これは従来の実験で使用した手順です。上流の更新でビルド補助コマンドや出力先が変わる場合があります。測定時のVVenCは **1.15.0-dev** ですがGitコミット番号は未記録です。VVdeCのFIFO対応パッチ全文は次節に掲載します。パッチ適用とビルドは実機で確認してください。
 
 ## VVdeCのFIFO対応パッチ（必ずビルド前に適用）
 
-`apply_vvdec_fifo_patch.py` は、実験で提示された **Annex B前方読み取り関数をそのまま**組み込み、`source/App/vvdecapp/vvdecHelper.h` を変更します。元ファイルは `.bak` に保存します。これは公式パッチではなく**実験版**です。VVdeC 3.3.0-dev の正確なコミットは記録されておらず、最新版での適用は保証されません。パッチ後のビルドと基本的なFIFO復号の報告はありますが、長時間の低遅延受像や再接続は未検証です。
+以下のPythonコマンドは、実験で提示された **Annex B前方読み取り関数をそのまま**組み込み、`source/App/vvdecapp/vvdecHelper.h` を変更します。元ファイルは `.bak` に保存します。これは公式パッチではなく**実験版**です。VVdeC 3.3.0-dev の正確なコミットは記録されておらず、最新版での適用は保証されません。パッチ後のビルドと基本的なFIFO復号の報告はありますが、長時間の低遅延受像や再接続は未検証です。
 
 ```bash
 cd ~/src/vvdec
-
-cp source/App/vvdecapp/vvdecHelper.h \
-   source/App/vvdecapp/vvdecHelper.h.bak
-```
-
-
-
-```bash
-cd ~/src/vvdec
+cp source/App/vvdecapp/vvdecHelper.h source/App/vvdecapp/vvdecHelper.h.bak
 
 python3 - <<'PY'
 from pathlib import Path
@@ -158,7 +158,6 @@ if "#include <vector>" not in s:
 
 s = s[:start] + new + s[end:]
 p.write_text(s)
-
 print("Modified:", p)
 PY
 ```
@@ -167,19 +166,26 @@ PY
 
 **注意:** `live.sh` は実験用です。1920×1080のカメラ入力設定や `~/y4m_pacer.py` の配置には調整が必要です。ライブ連続受像・DVB-S2送信の成功は主張していません。
 
+### パッチ適用後にVVdeCをビルド
+
+```bash
+cd ~/src/vvdec
+make release
+ls -l ~/src/vvdec/bin/release-static/vvdecapp
+```
+
 ## 2. GitHubからクローン
 
-リポジトリを公開した後に実行：
+エンコーダー・デコーダーのビルド後に実行：
 
 ```bash
 cd ~
 git clone https://github.com/shinji-y-jp/rock4d-h266-live.git
 cd rock4d-h266-live
-chmod +x *.sh
-chmod +x *.py
+chmod +x capture_yuv.sh benchmark.sh decode_file.sh live.sh
 ```
 
-未公開なら、まずZIP内のファイルを `rock4d-h266-live` リポジトリにアップロードするか、ZIPを展開して直接使用してください。
+公開リポジトリ： https://github.com/shinji-y-jp/rock4d-h266-live
 
 ## 3. カメラ対応モードの確認
 
@@ -267,3 +273,9 @@ cp -i y4m_pacer.py ~/
 約58.7kbpsのVVCビットストリームは狭帯域DATVに有望ですが、必要なシンボルレートはMODCOD・フレーミング・TS多重化などのオーバーヘッドで変化します。RF/DVB-S2試験は含みません。VVenC/VVdeCの実行ファイルやパッチは同梱していません。上流のライセンスに従ってください。
 
 実験：**山崎慎慈（JE1BTA）**。
+
+## 著作権とライセンス
+
+Copyright (C) 2026 山崎 慎慈（やまざき しんじ） — 2026年10月28日。
+
+本リポジトリの独自コードと文書は **GNU General Public License v3.0（GPL-3.0）** に基づいて公開します。VVenC・VVdeCなど第三者のソフトウェアには、それぞれのライセンスが適用されます。
