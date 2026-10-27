@@ -40,8 +40,6 @@ cp source/App/vvdecapp/vvdecHelper.h \
 
 
 ```bash
-cd ~/src/vvdec
-
 python3 - <<'PY'
 from pathlib import Path
 
@@ -149,6 +147,19 @@ new = r'''static int readBitstreamFromFile(
 
   return static_cast<int>( nal.size() );
 }
+'''
+
+# Ensure vector is available.
+if "#include <vector>" not in s:
+    s = "#include <vector>\n" + s
+    start = s.index("static int readBitstreamFromFile(")
+    end = s.index("\n  /**", start)
+
+s = s[:start] + new + s[end:]
+p.write_text(s)
+
+print("Modified:", p)
+PY
 ```
 
 If you already cloned VVdeC, omit `git clone`. If the patch refuses because the file differs, inspect the version rather than forcing a replacement. For a fresh rebuild of a previously built tree, clean/reconfigure according to upstream build instructions. Restore the original with `cp source/App/vvdecapp/vvdecHelper.h.bak source/App/vvdecapp/vvdecHelper.h`.
