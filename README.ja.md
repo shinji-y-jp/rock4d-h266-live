@@ -48,7 +48,7 @@ p = Path("source/App/vvdecapp/vvdecHelper.h")
 s = p.read_text()
 
 start = s.index("static int readBitstreamFromFile(")
-end = s.index("\n  /**", start)
+end = s.index("\n/**", start)
 
 new = r'''static int readBitstreamFromFile(
     std::ifstream *f,
@@ -154,7 +154,7 @@ new = r'''static int readBitstreamFromFile(
 if "#include <vector>" not in s:
     s = "#include <vector>\n" + s
     start = s.index("static int readBitstreamFromFile(")
-    end = s.index("\n  /**", start)
+    end = s.index("\n/**", start)
 
 s = s[:start] + new + s[end:]
 p.write_text(s)
