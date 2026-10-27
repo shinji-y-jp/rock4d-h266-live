@@ -13,13 +13,13 @@ mkdir -p ~/src
 cd ~/src
 git clone https://github.com/fraunhoferhhi/vvenc.git
 cd vvenc
-./make install-release-static
+./make release
 ls -l ~/src/vvenc/bin/release-static/vvencapp
 cd ~/src
 git clone https://github.com/fraunhoferhhi/vvdec.git
 cd vvdec
 # 先に以下のFIFOパッチ適用手順を実行
-# ./make install-release-static
+# ./make release
 ls -l ~/src/vvdec/bin/release-static/vvdecapp
 ```
 
