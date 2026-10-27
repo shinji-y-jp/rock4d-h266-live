@@ -163,7 +163,8 @@ After publishing to your GitHub account:
 cd ~
 git clone https://github.com/shinji-y-jp/rock4d-h266-live.git
 cd rock4d-h266-live
-chmod +x capture_yuv.sh benchmark.sh decode_file.sh live.sh
+chmod +x *.sh
+chmod +x *.py
 ```
 
 If that repository URL has not yet been created, upload this ZIP's folder contents to a new repository named `rock4d-h266-live`, or extract the ZIP and run locally without cloning.

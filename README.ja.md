@@ -162,7 +162,8 @@ new = r'''static int readBitstreamFromFile(
 cd ~
 git clone https://github.com/shinji-y-jp/rock4d-h266-live.git
 cd rock4d-h266-live
-chmod +x capture_yuv.sh benchmark.sh decode_file.sh live.sh
+chmod +x *.sh
+chmod +x *.py
 ```
 
 未公開なら、まずZIP内のファイルを `rock4d-h266-live` リポジトリにアップロードするか、ZIPを展開して直接使用してください。
