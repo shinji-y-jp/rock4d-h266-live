@@ -190,7 +190,8 @@ After building the encoder and patched decoder:
 cd ~
 git clone https://github.com/shinji-y-jp/rock4d-h266-live.git
 cd rock4d-h266-live
-chmod +x capture_yuv.sh benchmark.sh decode_file.sh live.sh
+chmod +x *.sh
+chmod +x *.py
 ```
 
 Repository: https://github.com/shinji-y-jp/rock4d-h266-live
