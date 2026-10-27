@@ -30,18 +30,126 @@ These are the build commands used in the earlier experiment; upstream revisions 
 This repository includes the **exact forward-only Annex B reader function supplied in the ROCK 4D experiment**, wrapped in a guarded patch script. It changes `source/App/vvdecapp/vvdecHelper.h` and creates `.bak`. It is **experimental, not an official upstream fix**. The source layout may differ across VVdeC revisions; the exact Git commit of the tested 3.3.0-dev tree was not recorded. A successful build and basic FIFO decode were reported; continuous low-latency playback and reconnection are not proven.
 
 ```bash
-sudo apt update
-sudo apt install -y git cmake build-essential python3
-mkdir -p ~/src
-cd ~/src
-git clone https://github.com/fraunhoferhhi/vvdec.git
-cd vvdec
-# Copy the patch script from this repository (adjust location as needed):
-cp ~/rock4d-h266-live/apply_vvdec_fifo_patch.py .
-python3 apply_vvdec_fifo_patch.py
-./make install-release-static
-ls -l ~/src/vvdec/bin/release-static/vvdecapp
-```
+cd ~/src/vvdec
+
+cp source/App/vvdecapp/vvdecHelper.h \
+   source/App/vvdecapp/vvdecHelper.h.bak
+'''
+
+
+
+
+```bash
+cd ~/src/vvdec
+
+python3 - <<'PY'
+from pathlib import Path
+
+p = Path("source/App/vvdecapp/vvdecHelper.h")
+s = p.read_text()
+
+start = s.index("static int readBitstreamFromFile(")
+end = s.index("\n  /**", start)
+
+new = r'''static int readBitstreamFromFile(
+    std::ifstream *f,
+    vvdecAccessUnit* pcAccessUnit,
+    bool bLoop )
+{
+  // Forward-only Annex B reader.
+  // Supports regular files and non-seekable FIFOs.
+  // State is retained between calls for the same stream.
+
+  static std::ifstream* lastStream = nullptr;
+  static std::vector<unsigned char> pending;
+
+  if( lastStream != f )
+  {
+    pending.clear();
+    lastStream = f;
+  }
+
+  std::vector<unsigned char> nal;
+  nal.swap( pending );
+
+  // Locate the first Annex B start code.
+  // 00 00 01 or 00 00 00 01
+  if( nal.empty() )
+  {
+    unsigned char b;
+    int zeros = 0;
+
+    while( f->read( reinterpret_cast<char*>(&b), 1 ) )
+    {
+      if( b == 0 )
+      {
+        zeros++;
+      }
+      else if( b == 1 && zeros >= 2 )
+      {
+        nal.assign( zeros >= 3 ? 4 : 3, 0 );
+        nal.back() = 1;
+        break;
+      }
+      else
+      {
+        zeros = 0;
+      }
+    }
+
+    if( nal.empty() )
+      return -1;
+  }
+
+  unsigned char b;
+  int zeros = 0;
+
+  while( f->read( reinterpret_cast<char*>(&b), 1 ) )
+  {
+    nal.push_back( b );
+
+    if( b == 0 )
+    {
+      zeros++;
+      continue;
+    }
+
+    if( b == 1 && zeros >= 2 )
+    {
+      const size_t prefix = zeros >= 3 ? 4 : 3;
+
+      // Preserve the next NAL start code.
+      pending.assign( nal.end() - prefix, nal.end() );
+      nal.resize( nal.size() - prefix );
+      break;
+    }
+
+    zeros = 0;
+  }
+
+  if( nal.empty() )
+    return -1;
+
+  if( nal.size() > pcAccessUnit->payloadSize )
+  {
+    unsigned char* newbuf =
+      static_cast<unsigned char*>( malloc( nal.size() ) );
+
+    if( !newbuf )
+      return -1;
+
+    free( pcAccessUnit->payload );
+    pcAccessUnit->payload = newbuf;
+    pcAccessUnit->payloadSize = nal.size();
+  }
+
+  std::copy( nal.begin(), nal.end(), pcAccessUnit->payload );
+
+  pcAccessUnit->payloadUsedSize = nal.size();
+
+  return static_cast<int>( nal.size() );
+}
+'''
 
 If you already cloned VVdeC, omit `git clone`. If the patch refuses because the file differs, inspect the version rather than forcing a replacement. For a fresh rebuild of a previously built tree, clean/reconfigure according to upstream build instructions. Restore the original with `cp source/App/vvdecapp/vvdecHelper.h.bak source/App/vvdecapp/vvdecHelper.h`.
 

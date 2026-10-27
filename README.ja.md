@@ -30,18 +30,125 @@ ls -l ~/src/vvdec/bin/release-static/vvdecapp
 `apply_vvdec_fifo_patch.py` は、実験で提示された **Annex B前方読み取り関数をそのまま**組み込み、`source/App/vvdecapp/vvdecHelper.h` を変更します。元ファイルは `.bak` に保存します。これは公式パッチではなく**実験版**です。VVdeC 3.3.0-dev の正確なコミットは記録されておらず、最新版での適用は保証されません。パッチ後のビルドと基本的なFIFO復号の報告はありますが、長時間の低遅延受像や再接続は未検証です。
 
 ```bash
-sudo apt update
-sudo apt install -y git cmake build-essential python3
-mkdir -p ~/src
-cd ~/src
-git clone https://github.com/fraunhoferhhi/vvdec.git
-cd vvdec
-# 本リポジトリのパッチスクリプトをコピー（配置に応じて変更）
-cp ~/rock4d-h266-live/apply_vvdec_fifo_patch.py .
-python3 apply_vvdec_fifo_patch.py
-./make install-release-static
-ls -l ~/src/vvdec/bin/release-static/vvdecapp
-```
+cd ~/src/vvdec
+
+cp source/App/vvdecapp/vvdecHelper.h \
+   source/App/vvdecapp/vvdecHelper.h.bak
+'''
+
+
+
+```bash
+cd ~/src/vvdec
+
+python3 - <<'PY'
+from pathlib import Path
+
+p = Path("source/App/vvdecapp/vvdecHelper.h")
+s = p.read_text()
+
+start = s.index("static int readBitstreamFromFile(")
+end = s.index("\n  /**", start)
+
+new = r'''static int readBitstreamFromFile(
+    std::ifstream *f,
+    vvdecAccessUnit* pcAccessUnit,
+    bool bLoop )
+{
+  // Forward-only Annex B reader.
+  // Supports regular files and non-seekable FIFOs.
+  // State is retained between calls for the same stream.
+
+  static std::ifstream* lastStream = nullptr;
+  static std::vector<unsigned char> pending;
+
+  if( lastStream != f )
+  {
+    pending.clear();
+    lastStream = f;
+  }
+
+  std::vector<unsigned char> nal;
+  nal.swap( pending );
+
+  // Locate the first Annex B start code.
+  // 00 00 01 or 00 00 00 01
+  if( nal.empty() )
+  {
+    unsigned char b;
+    int zeros = 0;
+
+    while( f->read( reinterpret_cast<char*>(&b), 1 ) )
+    {
+      if( b == 0 )
+      {
+        zeros++;
+      }
+      else if( b == 1 && zeros >= 2 )
+      {
+        nal.assign( zeros >= 3 ? 4 : 3, 0 );
+        nal.back() = 1;
+        break;
+      }
+      else
+      {
+        zeros = 0;
+      }
+    }
+
+    if( nal.empty() )
+      return -1;
+  }
+
+  unsigned char b;
+  int zeros = 0;
+
+  while( f->read( reinterpret_cast<char*>(&b), 1 ) )
+  {
+    nal.push_back( b );
+
+    if( b == 0 )
+    {
+      zeros++;
+      continue;
+    }
+
+    if( b == 1 && zeros >= 2 )
+    {
+      const size_t prefix = zeros >= 3 ? 4 : 3;
+
+      // Preserve the next NAL start code.
+      pending.assign( nal.end() - prefix, nal.end() );
+      nal.resize( nal.size() - prefix );
+      break;
+    }
+
+    zeros = 0;
+  }
+
+  if( nal.empty() )
+    return -1;
+
+  if( nal.size() > pcAccessUnit->payloadSize )
+  {
+    unsigned char* newbuf =
+      static_cast<unsigned char*>( malloc( nal.size() ) );
+
+    if( !newbuf )
+      return -1;
+
+    free( pcAccessUnit->payload );
+    pcAccessUnit->payload = newbuf;
+    pcAccessUnit->payloadSize = nal.size();
+  }
+
+  std::copy( nal.begin(), nal.end(), pcAccessUnit->payload );
+
+  pcAccessUnit->payloadUsedSize = nal.size();
+
+  return static_cast<int>( nal.size() );
+}
+'''
 
 既にVVdeCをクローン済みなら `git clone` は不要です。パッチがソースの不一致で停止した場合、無理に置換せずバージョンを確認してください。復元は `cp source/App/vvdecapp/vvdecHelper.h.bak source/App/vvdecapp/vvdecHelper.h` です。
 
