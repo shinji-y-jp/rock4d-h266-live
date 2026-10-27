@@ -34,7 +34,7 @@ cd ~/src/vvdec
 
 cp source/App/vvdecapp/vvdecHelper.h \
    source/App/vvdecapp/vvdecHelper.h.bak
-'''
+```
 
 
 
@@ -149,7 +149,7 @@ new = r'''static int readBitstreamFromFile(
 
   return static_cast<int>( nal.size() );
 }
-'''
+```
 
 If you already cloned VVdeC, omit `git clone`. If the patch refuses because the file differs, inspect the version rather than forcing a replacement. For a fresh rebuild of a previously built tree, clean/reconfigure according to upstream build instructions. Restore the original with `cp source/App/vvdecapp/vvdecHelper.h.bak source/App/vvdecapp/vvdecHelper.h`.
 

@@ -34,7 +34,7 @@ cd ~/src/vvdec
 
 cp source/App/vvdecapp/vvdecHelper.h \
    source/App/vvdecapp/vvdecHelper.h.bak
-'''
+```
 
 
 
@@ -148,7 +148,7 @@ new = r'''static int readBitstreamFromFile(
 
   return static_cast<int>( nal.size() );
 }
-'''
+```
 
 既にVVdeCをクローン済みなら `git clone` は不要です。パッチがソースの不一致で停止した場合、無理に置換せずバージョンを確認してください。復元は `cp source/App/vvdecapp/vvdecHelper.h.bak source/App/vvdecapp/vvdecHelper.h` です。
 
